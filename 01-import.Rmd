@@ -1,0 +1,111 @@
+---
+title: "Import/clean"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Setup
+
+```{r setup}
+library(tidyverse)
+library(janitor)
+library(RSocrata)
+library(lubridate)
+```
+
+## Setting up download URL
+
+Getting data directly from the [data.texas.gov](https://data.texas.gov/dataset/Mixed-Beverage-Gross-Receipts/naix-2893) portal using the Socrata API. Drawing from at least five years of data from the Mixed Beverage Gross Receipts for establishments with an Austin local address. Data provided by Texas Comptroller of Public Accounts.
+
+```{r url}
+mixbev_base_url = 'https://data.texas.gov/resource/fp9t-htqh.json?'
+start_date = '2016-01-31'
+end_date = '2021-08-31'
+city = 'AUSTIN'
+
+download_url <-  paste(
+  mixbev_base_url,
+  # "$limit=100&", 
+  "$where=obligation_end_date_yyyymmdd%20between%20",
+  "'", start_date, "'",
+  " and ",
+  "'", end_date, "'",
+  "&location_city=",
+  "'", city, "'",
+  sep = ""
+)
+
+download_url
+```
+
+## Download the data
+
+Downloading the data into an R object.
+
+```{r download}
+receipts_api <- read.socrata(download_url)
+
+# look at the data
+receipts_api %>% glimpse()
+```
+
+## Saving raw data into data-raw folder
+
+Saving as .rds file
+
+```{r raw}
+receipts_api %>% write_rds("data-raw/01-mixbev.rds")
+```
+
+
+## Clean data and fix some values 
+
+Changing the receipts columns from characters to numbers
+
+```{r clean}
+receipts_converted <- receipts_api %>%
+  type_convert(
+    cols(
+        .default = col_character(), # sets a default of character unless specified below
+        liquor_receipts = col_double(),
+        wine_receipts = col_double(),
+        beer_receipts = col_double(),
+        cover_charge_receipts = col_double(),
+        total_receipts = col_double()
+    )
+  )
+
+receipts_converted %>% glimpse()
+```
+
+## Get helpful variables from dates
+
+Changed obligation end date to date format. Parse the obligation end date into year, month, and year-month variables. Reordered and dropped some columns.
+
+```{r parse-date}
+date_fix <- receipts_converted %>% 
+  mutate(
+      obligation_end_date_yyyymmdd = ymd(obligation_end_date_yyyymmdd),
+      yr = year(obligation_end_date_yyyymmdd),
+      mo = month(obligation_end_date_yyyymmdd, label = TRUE),
+      yr_mo = format(obligation_end_date_yyyymmdd, "%Y-%m")
+  ) %>% 
+  select(location_name, location_address, location_zip, obligation_end_date_yyyymmdd, yr, mo, yr_mo, total_receipts, everything(), -cover_charge_receipts, -location_state, -tabc_permit_number, -taxpayer_county, -location_number, -location_city)
+
+
+date_fix %>% glimpse()
+```
+
+## Export the data
+
+For later use in analysis notebook
+
+```{r export}
+date_fix %>% write_rds("data-processed/01-mix-bev.rds")
+```
+
+
+
+
+
