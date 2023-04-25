@@ -1,0 +1,231 @@
+---
+title: "Mixed Beverage Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Goals
+
+- Plot seasonal alcohol sales trends for downtown Austin
+- Compare what a normal March year looked like versus during pandemic
+- Calculate what percentage March sales make up of establishments’ yearly sales
+- Find what downtown establishment had the most March alcohol sales over the 5 years
+
+## Setup
+
+```{r setup}
+library(tidyverse)
+library(lubridate)
+library(scales)
+library(plotly)
+library(clipr)
+library(dplyr)
+```
+
+
+## Import
+
+Importing from previous notebook.
+
+```{r import}
+mix_bev <- read_rds("data-processed/01-mix-bev.rds")
+
+mix_bev %>% glimpse()
+```
+
+## Filtering to downtown data
+
+Only locations with 78701 zip code.
+
+```{r filter-downtown}
+downtown_data <- mix_bev %>% 
+  filter(location_zip == "78701")
+
+downtown_data
+```
+## Explore year-monthly total alcohol sales for downtown establishments
+
+Was curious to see which year and month had the most alcohol sales.
+_Answer: March 2019_
+
+```{r yr-mo}
+downtown_yrmo <- downtown_data %>% 
+  group_by(yr_mo) %>% 
+  summarize(
+    total_receipts = sum(total_receipts)
+    ) %>% 
+  arrange(total_receipts %>% desc())
+
+downtown_yrmo
+```
+
+## Find yearly total alcohol sales for downtown establishments
+
+Wanted a summary table with total alcohol sales per year. Will need for calculating percentages in Question 3.
+
+```{r yr-sales}
+downtown_yr <- downtown_data %>% 
+  group_by(yr) %>% 
+  summarize(
+    yr_total_receipts = sum(total_receipts)
+    ) %>% 
+  arrange(yr_total_receipts %>% desc()) %>% 
+  mutate(yr = as.character(yr))
+
+downtown_yr
+```
+
+## Question 1: Plot seasonal alcohol sales trends for downtown Austin
+
+First graph is just to _explore_ the data and see seasonal trends.
+
+```{r exploratory-plot, fig.width = 7}
+downtown_yrmo %>% 
+ggplot(aes(x = yr_mo, y = total_receipts)) +
+  geom_line(group = 1) +
+    theme(axis.text.x = element_text(angle = 90)) +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "Seasonal Alcohol Sales Trends in Downtown Austin",
+    x = "Month & Year",
+    y = "Total Alcohol Sales" 
+  )
+
+```
+
+## Split graph by year instead
+
+Since the first graph is not easy to read, I split by year instead. In order to do this, I first prepared the data with month and year.
+
+```{r seasonal-data}
+yr_mo_data <- downtown_data %>% 
+  group_by(yr, mo) %>% 
+  summarize(
+    total_receipts = sum(total_receipts)
+  )
+
+yr_mo_data
+```
+
+## Plot Seasonal Trends Split by Year
+
+This is one of my two publishable graphs. It is now easier to tell that March leads downtown alcohol sales.
+
+```{r seasonal-plot}
+yr_mo_data %>% 
+  ggplot(aes(x = mo, y = total_receipts)) +
+  geom_line(aes(group = yr, color = as.character(yr))) +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "Seasonal Alcohol Sales Trends in Downtown Austin, Split by Year",
+    subtitle = "Monthly data from establishments selling liquor-by-the-drink (January 2016 to August 2021)",
+    caption = "Mixed Beverage Gross Receipts data provided by Texas Comptroller of Public Accounts",
+    x = "Month",
+    y = "Total Alcohol Sales",
+    color = "Year"
+  )
+  
+```
+
+## Question 2: Compare what a normal March year looked like versus during pandemic
+
+Needed a summary table for March alcohol sales over the years. Had to add a third column for year in order to answer Question 3.
+
+```{r march}
+downtown_march <- downtown_data %>% 
+  filter(mo == "Mar") %>% 
+   group_by(yr_mo) %>% 
+  summarise(
+    mar_total_receipts = sum(total_receipts)
+    ) %>% 
+  arrange(mar_total_receipts %>% desc()) %>% 
+  mutate(yr = str_sub(yr_mo, 1, 4))
+
+downtown_march
+```
+
+## Get data for Datawrapper
+
+My second publishable chart will be created using Datawrapper. Will create a column chart comparing March alcohol sales from 2016 to 2021.
+
+```{r datawrapper}
+downtown_march %>% write_clip(allow_non_interactive = TRUE)
+```
+
+[Here is my chart from Datawrapper.](https://www.datawrapper.de/_/MI67t/)
+
+## Data preparation for Question 3
+
+Joining year and year/month tables in order to calculate March percentages.
+
+```{r join}
+downtown_join <- downtown_yr %>% 
+  left_join(downtown_march, by = "yr")
+
+downtown_join
+```
+
+## Question 3: Calculate what percentage March sales make up of establishments’ yearly sales
+
+Using joined table to calculate how much March contributes to sales of alcohol downtown during SXSW. I decided not to include the actual percentages in the data drop because they were lower than I expected, and it didn't sound as newsworthy or striking as I thought.
+
+```{r percentages}
+march_rates <- downtown_join %>% 
+  mutate(
+    march_percentage = ((mar_total_receipts / yr_total_receipts) * 100) %>% round()
+  )
+
+march_rates
+```
+
+## Question 4: Find  what downtown establishment had the most March alcohol sales over the 5 years
+
+Answer: JW Marriott located by Austin Convention Center. Grouping by location name and location address to find exact establishment.
+
+```{r most-march-sales}
+downtown_data %>% 
+  filter(mo == "Mar") %>% 
+  group_by(location_name, location_address) %>% 
+  summarize(
+    march_total_receipts = sum(total_receipts)
+    ) %>% 
+  arrange(march_total_receipts %>% desc())
+```
+
+## Bonus: The Dogwood sales
+
+From March 2019 to March 2020, 82% drop in sales. No sales generated in April or July of 2020.
+
+```{r dogwood}
+downtown_data %>% 
+  filter(
+    location_name == "THE DOGWOOD",
+    location_address == "715 W 6TH ST"
+    ) %>% 
+  group_by(yr_mo) %>% 
+  summarise(
+    mo_total_receipts = sum(total_receipts)
+    ) %>% 
+  arrange(mo_total_receipts %>% desc())
+```
+
+
+## Dogwood March sales
+
+Just looking at The Dogwood's alcohol sales during March
+
+```{r dogwood-march}
+downtown_data %>% 
+  filter(
+    mo == "Mar",
+    location_name == "THE DOGWOOD",
+    location_address == "715 W 6TH ST"
+    ) %>% 
+  group_by(yr_mo) %>% 
+  summarise(
+    mo_total_receipts = sum(total_receipts)
+    ) %>% 
+  arrange(mo_total_receipts %>% desc())
+```
+
