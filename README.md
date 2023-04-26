@@ -1,6 +1,6 @@
 # mixed-bev
 
-Every March, the South by Southwest festival attracts visitors from around the world to Austin, Texas and promotes the city’s tourism sector. But exactly how much does March contribute to yearly sales of alcohol in downtown Austin? How did this change during the COVID-19 pandemic? 🍸
+Every March, the South by Southwest festival attracts visitors from around the world to Austin, Texas, and promotes the city’s tourism sector. But exactly how much do March sales contribute to yearly sales of alcohol in downtown Austin? How did this change during the COVID-19 pandemic? 🍸
 
 👉**Project Goals**: 
 
